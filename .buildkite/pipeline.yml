@@ -1,0 +1,21 @@
+# RSpec + Buildkite Test Engine demo pipeline.
+# Runs the suite inside a pinned Ruby image so it behaves identically on any
+# agent, and streams results to Test Engine via the buildkite-test_collector gem.
+steps:
+  - label: ":rspec: RSpec → Test Engine"
+    key: "rspec"
+    command: |
+      echo "--- :bundler: Installing gems"
+      bundle install --quiet
+      echo "--- :rspec: Running specs"
+      bundle exec rspec
+    plugins:
+      - docker#v5.11.0:
+          image: "ruby:3.3"
+          # Pass the Buildkite CI env (branch, commit, build id) into the
+          # container so Test Engine can attribute the run correctly.
+          propagate-environment: true
+          environment:
+            - "BUILDKITE_ANALYTICS_TOKEN"
+    agents:
+      queue: "aws"
