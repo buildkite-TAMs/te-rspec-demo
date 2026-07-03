@@ -5,22 +5,22 @@
 # The Test Engine upload token is pulled from a Buildkite cluster secret
 # (RSPEC_ANALYTICS_TOKEN) at job start — never committed, never a plain env var.
 # Secret env names can't start with BUILDKITE, so we re-export it to the name the
-# collector expects (BUILDKITE_ANALYTICS_TOKEN) inside the step.
+# collector expects (BUILDKITE_ANALYTICS_TOKEN).
+#
+# NOTE the "$$" below: `buildkite-agent pipeline upload` interpolates single "$"
+# variables at UPLOAD time (before the secret exists), which would blank the
+# token. "$$" escapes to a literal "$" so the shell expands it at RUNTIME inside
+# the container, where the secret is present.
 steps:
   - label: ":rspec: RSpec → Test Engine"
     key: "rspec"
-    command: |
-      export BUILDKITE_ANALYTICS_TOKEN="$RSPEC_ANALYTICS_TOKEN"
-      echo "--- :bundler: Installing gems"
-      bundle install --quiet
-      echo "--- :rspec: Running specs"
-      bundle exec rspec
+    command: 'export BUILDKITE_ANALYTICS_TOKEN="$$RSPEC_ANALYTICS_TOKEN" && bundle install --quiet && bundle exec rspec'
     secrets:
       - RSPEC_ANALYTICS_TOKEN
     plugins:
       - docker#v5.13.0:
           image: "ruby:3.3"
-          # Pass the CI env (branch/commit/build id) + the token into the container.
+          # Pass the CI env (branch/commit/build id) + the secret into the container.
           propagate-environment: true
           environment:
             - "RSPEC_ANALYTICS_TOKEN"

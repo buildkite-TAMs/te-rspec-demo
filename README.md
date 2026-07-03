@@ -66,15 +66,21 @@ cluster and pulled at job start, never committed and never a plain env var.
    the step re-exports it:
 
    ```yaml
-   command: |
-     export BUILDKITE_ANALYTICS_TOKEN="$RSPEC_ANALYTICS_TOKEN"
-     bundle exec rspec
+   command: 'export BUILDKITE_ANALYTICS_TOKEN="$$RSPEC_ANALYTICS_TOKEN" && bundle install --quiet && bundle exec rspec'
    secrets:
      - RSPEC_ANALYTICS_TOKEN
    ```
 
    The `policy` scopes the secret to this pipeline only, and Buildkite redacts the
    value from build logs automatically.
+
+   > ⚠️ **Gotcha — use `$$`, not `$`.** `buildkite-agent pipeline upload`
+   > interpolates `$VARIABLE` at **upload time**, which is *before* the secret is
+   > injected at runtime — so `$RSPEC_ANALYTICS_TOKEN` would expand to an empty
+   > string and silently upload nothing. Escaping as `$$RSPEC_ANALYTICS_TOKEN`
+   > passes a literal `$` through, so the shell expands it at **runtime** inside
+   > the container where the secret exists. (Alternatively, put the command in a
+   > committed script file — script contents aren't interpolated at upload time.)
 
 ### 3. Push this repo and create the pipeline
 
