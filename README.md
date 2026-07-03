@@ -41,15 +41,40 @@ Everything else is a normal Ruby project.
 2. Name it `rspec-demo`, choose **RSpec** as the framework.
 3. Copy the **API token** it shows you (this is your `BUILDKITE_ANALYTICS_TOKEN`).
 
-### 2. Make the token available to the pipeline
+### 2. Make the token available to the pipeline (as a Buildkite secret)
 
-The collector reads `BUILDKITE_ANALYTICS_TOKEN` at runtime. Pick one:
+This repo uses **Buildkite secrets** — the token is stored encrypted in the
+cluster and pulled at job start, never committed and never a plain env var.
 
-- **Quick (sandbox):** Pipeline → **Settings → Environment Variables** → add
-  `BUILDKITE_ANALYTICS_TOKEN` = _your token_.
-- **Recommended (real customers):** store it as a
-  [cluster secret](https://buildkite.com/docs/pipelines/security/secrets/buildkite-secrets)
-  and export it in an `environment` hook. Never commit the token.
+1. Create a cluster secret holding the suite token. Its key **cannot** start with
+   `BUILDKITE`/`BK`, so we call it `RSPEC_ANALYTICS_TOKEN`:
+
+   ```bash
+   curl -H "Authorization: Bearer $TOKEN" \
+     -X POST "https://api.buildkite.com/v2/organizations/tam-sandbox/clusters/<CLUSTER_ID>/secrets" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "key": "RSPEC_ANALYTICS_TOKEN",
+       "value": "<the suite api_token from step 1>",
+       "policy": "- pipeline_slug: te-rspec-demo"
+     }'
+   ```
+   (Or create it in the UI: **Cluster → Secrets → New secret**.)
+
+2. The pipeline declares `secrets: [RSPEC_ANALYTICS_TOKEN]`, which injects it as a
+   job env var. Because the collector specifically wants `BUILDKITE_ANALYTICS_TOKEN`,
+   the step re-exports it:
+
+   ```yaml
+   command: |
+     export BUILDKITE_ANALYTICS_TOKEN="$RSPEC_ANALYTICS_TOKEN"
+     bundle exec rspec
+   secrets:
+     - RSPEC_ANALYTICS_TOKEN
+   ```
+
+   The `policy` scopes the secret to this pipeline only, and Buildkite redacts the
+   value from build logs automatically.
 
 ### 3. Push this repo and create the pipeline
 
